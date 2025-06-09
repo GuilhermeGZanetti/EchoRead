@@ -48,6 +48,41 @@ echoread/
 └── README.md             # This file
 ```
 
+## Installation
+
+To set up and run EchoRead, you'll use Docker Compose. This will build the necessary Docker images and start the services (API server and database).
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository_url>
+    cd echoread
+    ```
+2.  **Build and run the services:**
+    Execute the following command from the root of the `echoread` directory:
+    ```bash
+    docker-compose up -d --build
+    ```
+    This command will:
+    *   Build the Docker image for the `api_server` if it doesn't exist or if changes have been made to its Dockerfile or context.
+    *   Start all services defined in `docker-compose.yml` in detached mode (`-d`).
+    *   The API server will be available at `http://localhost:8000`.
+
+## Development
+
+For development, the `api_server` is configured for live reloading. This means that any changes you make to the Python code within the `api_server` directory on your local machine will automatically trigger a reload of the server within the Docker container.
+
+*   **Live Reload:** The `api` service in `docker-compose.yml` uses the `uvicorn --reload` command.
+*   **Volume Mounting:** The `api_server` directory is mounted as a volume into the container. This ensures that your local code changes are directly reflected inside the container, allowing Uvicorn to detect them and reload.
+
+To run in development mode, use the same command as for installation:
+```bash
+docker-compose up -d --build
+```
+You can then view the logs for the API server to see the reload messages:
+```bash
+docker-compose logs -f api
+```
+
 ## Data Model (MVP Tables)
 
 *   **users:** `id`, `email`, `name`, `created_at`
