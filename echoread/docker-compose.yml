@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./api_server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api_server:/app
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: "postgresql://echoread_user:echoread_password@db:5432/echoread_db"
+      # Add other environment variables needed for the API server, like GPU allocation if necessary
+      # NVIDIA_VISIBLE_DEVICES: all # Example for GPU access
+
+  db:
+    image: postgres:13
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: echoread_db
+      POSTGRES_USER: echoread_user
+      POSTGRES_PASSWORD: echoread_password
+
+volumes:
+  postgres_data:
