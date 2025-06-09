@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Text, Float
 from sqlalchemy.orm import relationship
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import BaseModel, Field as PydanticField, field_serializer # Added field_serializer here
 from typing import List, Optional
 from datetime import datetime
 import uuid # For default factory if needed for Pydantic models
@@ -24,6 +24,7 @@ class Book(Base):
     id = Column(String, primary_key=True, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
+    author = Column(String, nullable=True)
     epub_path = Column(String, nullable=True)
     status = Column(String, default="pending")
     chapter_count = Column(Integer, nullable=True)
@@ -130,17 +131,26 @@ class PlayResponse(PlayBase): # Response model for play position
     class Config:
         from_attributes = True
 
+class AudioURLResponse(BaseModel):
+    url: str
+    expires_in: int
+
 # Existing Pydantic models - to be reviewed and updated/replaced
 class BookMetadata(BaseModel): # Can potentially be replaced by BookResponse or a subset
     id: str
     title: str
     created_at: datetime
     status: str
+    # author: Optional[str] # Add author to BookResponse as well if it's a common field
 
-class BookDetail(BookMetadata): # Can be replaced by BookResponse + list of AudioResponse
-    author: Optional[str] = "Unknown Author" # This was mock, can be removed or added to Book model
-    chapter_count: Optional[int] = None
-    audios: Optional[List[AudioResponse]] = None # Example of nesting audios
+class BookDetail(BookResponse): # Inherit from BookResponse to get all base fields
+    author: Optional[str] = None # Field from ORM, can be None
+    audios: Optional[List[AudioResponse]] = None
+
+    @field_serializer('author')
+    def serialize_author(self, value: Optional[str], _info): # _info is FieldSerializationInfo
+        return value if value is not None else "Unknown Author"
+
     class Config:
         from_attributes = True
 

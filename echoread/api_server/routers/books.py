@@ -6,6 +6,7 @@ import uuid
 import time
 
 from echoread.api_server import models
+from echoread.api_server.models import AudioURLResponse # Import the new model
 from echoread.api_server.database import get_db
 from echoread.api_server.routers.users import get_current_user_mock
 
@@ -162,16 +163,18 @@ async def list_book_audios(
     # These will be converted to AudioChapterInfo by Pydantic.
     return book.audios
 
-@router.get("/{book_id}/audios/{audio_id}")
+@router.get("/{book_id}/audios/{audio_id}", response_model=AudioURLResponse)
 async def get_book_chapter_audio(
     book_id: str,
     audio_id: str,
-    current_user: models.User = Depends(get_current_user_mock),
-    db: Session = Depends(get_db)
+    current_user: models.User = Depends(get_current_user_mock), # current_user is available if needed for logic
+    db: Session = Depends(get_db) # db session is available if needed
 ):
-    audio_obj = _get_audio_or_404(db, book_id, audio_id, current_user.id)
+    # Ensure the audio chapter exists and belongs to the user's book (indirectly via book_id and user_id)
+    _ = _get_audio_or_404(db, book_id, audio_id, current_user.id) # We don't need audio_obj here
 
-    # Actual audio file streaming would go here in a real app.
-    # For now, returning mock data based on the audio object's ID.
-    mock_mp3_data = b"mock_mp3_data_for_" + audio_obj.id.encode('utf-8') + b"_chapter_" + str(audio_obj.chapter_index).encode('utf-8')
-    return Response(content=mock_mp3_data, media_type="audio/mpeg")
+    # Construct the URL as specified
+    url = f"https://api.echoread.com/media/books/{book_id}/chapters/{audio_id}.mp3?token=mock_presigned_token"
+    expires_in = 3600 # As specified
+
+    return AudioURLResponse(url=url, expires_in=expires_in)

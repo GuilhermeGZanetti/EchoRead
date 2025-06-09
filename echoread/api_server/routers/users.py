@@ -7,24 +7,32 @@ from echoread.api_server import models # SQLAlchemy models and Pydantic models/s
 from echoread.api_server.database import get_db # Database session dependency
 
 # --- Mock Authentication Dependency (Updated) ---
+from fastapi import Header # Import Header
+
 # This is a placeholder. In a real app, this would involve decoding and verifying a JWT,
 # then fetching the user from the DB based on 'sub' or similar claim.
 async def get_current_user_mock(
     db: Session = Depends(get_db),
-    token: Optional[str] = Depends(lambda x: x.headers.get("Authorization"))
+    authorization: Optional[str] = Header(None) # Use Header to get Authorization
 ):
-    if not token or not token.startswith("Bearer mock_jwt_token"):
+    token = authorization # Use the header value
+    if not token or not token.startswith("Bearer mock_jwt_token."): # Note: check includes the dot now.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated or invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    try:
-        user_email = token.split(".")[-1] # Mock: email is the last part of the token
-    except IndexError:
+
+    # Expected token format: "Bearer mock_jwt_token.user@example.com"
+    # Extract the email part more robustly
+    token_prefix = "Bearer mock_jwt_token."
+    # The startswith check above already ensures the prefix.
+    user_email = token[len(token_prefix):] # Get the part after "Bearer mock_jwt_token."
+
+    if not user_email: # Check if email part is empty
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token format for mock user",
+            detail="Missing email in mock token", # Or invalid format if email is empty
             headers={"WWW-Authenticate": "Bearer"},
         )
 
