@@ -20,6 +20,8 @@ gunicorn = "^21.2.0" # For running the app in Docker
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
+httpx = "^0.25.0" # Added for TestClient
+python-multipart = "^0.0.6" # For FastAPI form data/file uploads
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

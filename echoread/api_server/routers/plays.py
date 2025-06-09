@@ -13,7 +13,7 @@ from echoread.api_server.routers.books import _get_book_or_404, _get_audio_or_40
 
 # --- Router Definition ---
 router = APIRouter(
-    prefix="/plays",
+    # prefix="/plays", # Prefix removed
     tags=["Playback"],
     dependencies=[Depends(get_current_user_mock)],
     responses={404: {"description": "Not found"}},
@@ -22,7 +22,7 @@ router = APIRouter(
 # Request model is models.PlayCreate, Response is models.PlayResponse
 
 # --- Endpoints ---
-@router.post("", response_model=models.PlayResponse)
+@router.post("/plays", response_model=models.PlayResponse) # Path changed
 async def save_play_position(
     request: models.PlayCreate, # Use Pydantic schema for request body
     current_user: models.User = Depends(get_current_user_mock), # SQLAlchemy User model
@@ -63,7 +63,7 @@ async def save_play_position(
     db.refresh(db_play)
     return db_play # Pydantic will convert using PlayResponse's from_attributes
 
-@router.get("/{book_id}", response_model=Optional[models.PlayResponse])
+@router.get("/play/{book_id}", response_model=List[models.PlayResponse]) # Path and response_model changed
 async def get_last_play_position(
     book_id: str,
     current_user: models.User = Depends(get_current_user_mock),
@@ -84,6 +84,6 @@ async def get_last_play_position(
     ).order_by(models.Play.updated_at.desc()).first()
 
     if not db_play:
-        return None
+        return [] # Return empty list if not found
 
-    return db_play # Pydantic will convert
+    return [db_play] # Return list with the found object
