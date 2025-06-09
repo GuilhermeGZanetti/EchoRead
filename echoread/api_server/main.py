@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 # Import the routers
-from .routers import auth, users, books, plays # Relative imports for routers
+from echoread.api_server.routers import auth, users, books, plays # Relative imports for routers
 
 app = FastAPI(
     title="EchoRead API",

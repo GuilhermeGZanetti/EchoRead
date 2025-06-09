@@ -1,24 +1,29 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Stage 1: Build the application with Poetry
+FROM python:3.8-slim as builder
 
-# Set the working directory in the container
+WORKDIR /app
+RUN pip install poetry
+COPY pyproject.toml poetry.lock* ./
+RUN poetry config virtualenvs.create false && poetry install --no-dev --no-interaction --no-ansi --no-root
+
+# Stage 2: Setup the runtime environment
+FROM python:3.8-slim
+
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Copy installed dependencies from the builder stage
+COPY --from=builder /usr/local/lib/python3.8/site-packages /usr/local/lib/python3.8/site-packages
+# Copy the alembic executable installed by poetry in the builder stage
+# This path might vary depending on Python version and poetry config,
+# /usr/local/bin is a common place for executables.
+COPY --from=builder /usr/local/bin/alembic /usr/local/bin/alembic
 
-# Install any needed packages specified in requirements.txt
-# For now, we'll assume a requirements.txt might be added later
-# RUN pip install --no-cache-dir -r requirements.txt
-# Install FastAPI and Uvicorn
-RUN pip install fastapi uvicorn psycopg2-binary sqlalchemy
 
-# Make port 8000 available to the world outside this container
+COPY . . # Copies the rest of the app, including alembic folder and alembic.ini
+
+# Run database migrations
+# poetry run ensures that alembic is run with the correct environment and dependencies
+RUN poetry run alembic upgrade head
+
 EXPOSE 8000
-
-# Define environment variable
-ENV MODULE_NAME="main"
-ENV VARIABLE_NAME="app"
-
-# Run main.py when the container launches
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "/app/gunicorn_conf.py", "echoread.api_server.main:app"]
