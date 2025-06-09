@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "echoread-api-server"
+version = "0.1.0"
+description = "API for EchoRead mobile application"
+authors = ["Your Name <you@example.com>"] # Placeholder
+readme = "README.md"  # Assuming a README exists or will be created in api_server
+
+[tool.poetry.dependencies]
+python = "^3.8"
+fastapi = "^0.104.1" # Use a recent version
+uvicorn = {extras = ["standard"], version = "^0.23.2"} # Use a recent version
+pydantic = "^2.4.2" # Use a recent version
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+sqlalchemy = "^2.0.23" # For SQLAlchemy ORM
+psycopg2-binary = "^2.9.9" # PostgreSQL adapter
+alembic = "^1.12.1" # For database migrations
+python-dotenv = "^1.0.0" # For loading .env files
+gunicorn = "^21.2.0" # For running the app in Docker
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

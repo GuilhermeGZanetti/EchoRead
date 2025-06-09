@@ -7,12 +7,13 @@ services:
       - "8000:8000"
     volumes:
       - ./api_server:/app
+            env_file: # Add this
+              - ./api_server/dev.env # Path to the .env file
     depends_on:
-      - db
+      db:
+        condition: service_healthy # Wait for db to be healthy
     environment:
-      DATABASE_URL: "postgresql://echoread_user:echoread_password@db:5432/echoread_db"
-      # Add other environment variables needed for the API server, like GPU allocation if necessary
-      # NVIDIA_VISIBLE_DEVICES: all # Example for GPU access
+      PYTHONPATH: "/app" # Ensure '/app' is in PYTHONPATH for absolute imports
 
   db:
     image: postgres:13
@@ -20,11 +21,16 @@ services:
       - postgres_data:/var/lib/postgresql/data/
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - "5432:5432" # Expose DB port to host if needed for direct access
     environment:
       POSTGRES_DB: echoread_db
       POSTGRES_USER: echoread_user
       POSTGRES_PASSWORD: echoread_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U echoread_user -d echoread_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

@@ -1,58 +1,163 @@
-from pydantic import BaseModel, Field
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Text, Float
+from sqlalchemy.orm import relationship
+from pydantic import BaseModel, Field as PydanticField
 from typing import List, Optional
 from datetime import datetime
+import uuid # For default factory if needed for Pydantic models
 
-class User(BaseModel):
-    id: str = Field(default_factory=lambda: "user_" + str(hash(datetime.now()))[:6]) # Mock ID
+from echoread.api_server.database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    books = relationship("Book", back_populates="owner", cascade="all, delete-orphan")
+    plays = relationship("Play", back_populates="user", cascade="all, delete-orphan")
+
+class Book(Base):
+    __tablename__ = "books"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    epub_path = Column(String, nullable=True)
+    status = Column(String, default="pending")
+    chapter_count = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    owner = relationship("User", back_populates="books")
+    audios = relationship("Audio", back_populates="book", cascade="all, delete-orphan")
+    # If Play model has a direct FK to Book, a relationship here might be useful too.
+    # plays = relationship("Play", back_populates="book") # If Play.book_id is a direct FK
+
+class Audio(Base):
+    __tablename__ = "audios"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: "audio_" + str(uuid.uuid4()))
+    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    chapter_index = Column(Integer, nullable=False)
+    audio_path = Column(String, nullable=True)
+    url = Column(String, nullable=True)
+    duration = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    book = relationship("Book", back_populates="audios")
+    plays = relationship("Play", back_populates="audio_played", cascade="all, delete-orphan")
+
+class Play(Base):
+    __tablename__ = "plays"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: "play_" + str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    book_id = Column(String, ForeignKey("books.id"), nullable=False)
+    audio_id = Column(String, ForeignKey("audios.id"), nullable=False)
+    last_timestamp = Column(Float, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="plays")
+    book = relationship("Book") # Direct relationship to Book
+    audio_played = relationship("Audio", back_populates="plays")
+
+
+# --- Pydantic Models for API interaction ---
+
+class UserBase(BaseModel):
     email: str
     name: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-class Book(BaseModel):
-    id: str = Field(default_factory=lambda: "book_" + str(hash(datetime.now()))[:6]) # Mock ID
-    user_id: str
+class UserCreate(UserBase):
+    pass
+
+class UserResponse(UserBase):
+    id: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class BookBase(BaseModel):
     title: str
-    epub_path: Optional[str] = None # Conceptual path
-    status: str = "pending" # e.g., pending, processing, complete, error
+    epub_path: Optional[str] = None # Handled by upload logic, not direct creation field
+    status: Optional[str] = "pending"
     chapter_count: Optional[int] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-class Audio(BaseModel):
-    id: str = Field(default_factory=lambda: "audio_" + str(hash(datetime.now()))[:6]) # Mock ID
-    book_id: str
+class BookCreate(BookBase):
+    title: str # Only title needed for creation, epub comes from file
+
+class BookResponse(BookBase):
+    id: str
+    user_id: str
+    created_at: datetime
+    status: str # Ensure status is part of response
+    chapter_count: Optional[int] # Ensure chapter_count is part of response
+    class Config:
+        from_attributes = True
+
+# Pydantic schemas for Audio
+class AudioBase(BaseModel):
     chapter_index: int
-    audio_path: Optional[str] = None # Conceptual path to mock audio
-    url: Optional[str] = None # URL to access this audio, e.g., /books/{book_id}/audios/{audio_id}
-    duration: Optional[float] = None # Duration in seconds
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    audio_path: Optional[str] = None
+    url: Optional[str] = None
+    duration: Optional[float] = None
 
-class Play(BaseModel):
-    id: str = Field(default_factory=lambda: "play_" + str(hash(datetime.now()))[:6]) # Mock ID
+class AudioCreate(AudioBase): # Used when creating audio entries internally
+    book_id: str
+    id: Optional[str] = None # ID can be generated by DB or pre-set
+
+class AudioResponse(AudioBase):
+    id: str
+    book_id: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+# Pydantic schemas for Play
+class PlayBase(BaseModel):
+    audio_id: str
+    last_timestamp: float
+
+class PlayCreate(PlayBase): # Request model for saving play position
+    book_id: str # Client needs to send book_id as well
+
+class PlayResponse(PlayBase): # Response model for play position
+    id: str
     user_id: str
     book_id: str
-    audio_id: str
-    last_timestamp: float # Playback position in seconds
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime
+    class Config:
+        from_attributes = True
 
-# For API responses (examples)
-class BookMetadata(BaseModel):
+# Existing Pydantic models - to be reviewed and updated/replaced
+class BookMetadata(BaseModel): # Can potentially be replaced by BookResponse or a subset
     id: str
     title: str
     created_at: datetime
     status: str
 
-class BookDetail(BookMetadata):
-    author: Optional[str] = "Unknown Author" # Mocked for now
+class BookDetail(BookMetadata): # Can be replaced by BookResponse + list of AudioResponse
+    author: Optional[str] = "Unknown Author" # This was mock, can be removed or added to Book model
     chapter_count: Optional[int] = None
+    audios: Optional[List[AudioResponse]] = None # Example of nesting audios
+    class Config:
+        from_attributes = True
 
-class AudioChapterInfo(BaseModel):
-    audio_id: str
-    chapter_index: int
-    url: str
-    duration: Optional[float] = None
 
-class PlayPosition(BaseModel):
+class AudioChapterInfo(BaseModel): # Can be derived/replaced by AudioResponse
+    audio_id: str # from AudioResponse.id
+    chapter_index: int # from AudioResponse.chapter_index
+    url: Optional[str] = None # from AudioResponse.url
+    duration: Optional[float] = None # from AudioResponse.duration
+    class Config:
+        from_attributes = True
+
+
+class PlayPosition(BaseModel): # Can be derived/replaced by PlayResponse
     book_id: str
     audio_id: str
     last_timestamp: float
     updated_at: datetime
+    class Config:
+        from_attributes = True
